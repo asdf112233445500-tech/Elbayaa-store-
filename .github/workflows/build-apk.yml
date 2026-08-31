@@ -26,44 +26,41 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Recreate Android project
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Create Gradle wrapper
+        working-directory: android
         run: |
-          rm -rf android
-          flutter create --platforms=android --org com.elbayaa --project-name store .
-          sed -i 's/id "com.android.application" version "[^"]*" apply false/id "com.android.application" version "8.9.1" apply false/' android/settings.gradle
-          sed -i "s/applicationId = 'com.elbayaa.store'/applicationId = 'com.elbayaa.store'/" android/app/build.gradle
-          echo "--- Android files ---"
-          find android -maxdepth 4 -type f | sort
-          echo "--- Gradle wrapper ---"
-          ls -la android/gradle/wrapper
+          gradle wrapper --gradle-version 8.11.1 --distribution-type bin
+          chmod +x gradlew
+          test -f gradle/wrapper/gradle-wrapper.jar
+          test -f gradle/wrapper/gradle-wrapper.properties
+          echo "Gradle wrapper ready"
+          cat gradle/wrapper/gradle-wrapper.properties
 
-      - name: Remove generated test
+      - name: Remove test directory
         run: rm -rf test
-
-      - name: Clean project
-        run: flutter clean
 
       - name: Get dependencies
         run: flutter pub get
 
       - name: Build release APK
-        run: flutter build apk --release --no-tree-shake-icons --verbose
+        run: flutter build apk --release --no-tree-shake-icons
 
-      - name: Find APK
+      - name: Verify APK
         run: |
-          echo "Searching for APK..."
-          find build -type f -name "*.apk" -print
-          APK=$(find build -type f -name "app-release.apk" | head -n 1)
-          if [ -z "$APK" ]; then
-            echo "ERROR: APK was not generated"
-            exit 1
-          fi
-          mkdir -p artifacts
-          cp "$APK" artifacts/ELBAYAA-Store.apk
+          APK="build/app/outputs/flutter-apk/app-release.apk"
+          test -f "$APK"
+          test -s "$APK"
+          echo "APK generated: $APK"
+          ls -lh "$APK"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: ELBAYAA-Store-APK
-          path: artifacts/ELBAYAA-Store.apk
+          path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error

@@ -27,8 +27,6 @@ jobs:
 
       # The uploaded project intentionally keeps Android source files,
       # but Flutter regenerates the Gradle wrapper on CI if it is absent.
-      - name: Repair Android project / Gradle wrapper
-        run: flutter create --platforms=android --org com.elbayaa --project-name elbayaa .
 
       - name: Remove generated Flutter test
         run: rm -rf test

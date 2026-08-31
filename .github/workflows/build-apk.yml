@@ -26,47 +26,38 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Restore Flutter Gradle wrapper
+      - name: Recreate Android project
         run: |
-          rm -rf /tmp/flutter_android_wrapper
-          flutter create --platforms=android /tmp/flutter_android_wrapper
-          mkdir -p android/gradle/wrapper
-          cp /tmp/flutter_android_wrapper/android/gradlew android/gradlew
-          cp /tmp/flutter_android_wrapper/android/gradlew.bat android/gradlew.bat
-          cp -R /tmp/flutter_android_wrapper/android/gradle/wrapper/. android/gradle/wrapper/
-          chmod +x android/gradlew
+          rm -rf android
+          flutter create --platforms=android --org com.elbayaa --project-name store .
+          sed -i 's/id "com.android.application" version "[^"]*" apply false/id "com.android.application" version "8.9.1" apply false/' android/settings.gradle
+          sed -i "s/applicationId = 'com.elbayaa.store'/applicationId = 'com.elbayaa.store'/" android/app/build.gradle
+          echo "--- Android files ---"
+          find android -maxdepth 4 -type f | sort
+          echo "--- Gradle wrapper ---"
           ls -la android/gradle/wrapper
 
       - name: Remove generated test
         run: rm -rf test
 
       - name: Clean project
-        run: |
-          flutter clean
-          rm -rf build
-          rm -rf android/.gradle
-          rm -rf android/app/build
+        run: flutter clean
 
       - name: Get dependencies
         run: flutter pub get
 
       - name: Build release APK
-        run: |
-          flutter build apk --release --no-tree-shake-icons
+        run: flutter build apk --release --no-tree-shake-icons --verbose
 
       - name: Find APK
         run: |
           echo "Searching for APK..."
-          find . -type f -name "*.apk" -print
-
+          find build -type f -name "*.apk" -print
           APK=$(find build -type f -name "app-release.apk" | head -n 1)
-
           if [ -z "$APK" ]; then
             echo "ERROR: APK was not generated"
             exit 1
           fi
-
-          echo "APK found: $APK"
           mkdir -p artifacts
           cp "$APK" artifacts/ELBAYAA-Store.apk
 

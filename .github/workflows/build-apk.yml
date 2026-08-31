@@ -30,6 +30,9 @@ jobs:
       - name: Repair Android project / Gradle wrapper
         run: flutter create --platforms=android --org com.elbayaa --project-name elbayaa .
 
+      - name: Remove generated Flutter test
+        run: rm -rf test
+
       - name: Get dependencies
         run: flutter pub get
 

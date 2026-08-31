@@ -8,6 +8,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -25,21 +26,42 @@ jobs:
           channel: stable
           cache: true
 
-      # The uploaded project intentionally keeps Android source files,
-      # but Flutter regenerates the Gradle wrapper on CI if it is absent.
-
-      - name: Remove generated Flutter test
+      - name: Remove generated test
         run: rm -rf test
+
+      - name: Clean project
+        run: |
+          flutter clean
+          rm -rf build
+          rm -rf android/.gradle
+          rm -rf android/app/build
 
       - name: Get dependencies
         run: flutter pub get
 
-
       - name: Build release APK
-        run: flutter build apk --release
+        run: |
+          flutter build apk --release --no-tree-shake-icons
+
+      - name: Find APK
+        run: |
+          echo "Searching for APK..."
+          find . -type f -name "*.apk" -print
+
+          APK=$(find build -type f -name "app-release.apk" | head -n 1)
+
+          if [ -z "$APK" ]; then
+            echo "ERROR: APK was not generated"
+            exit 1
+          fi
+
+          echo "APK found: $APK"
+          mkdir -p artifacts
+          cp "$APK" artifacts/ELBAYAA-Store.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: ELBAYAA-Store-APK
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: artifacts/ELBAYAA-Store.apk
+          if-no-files-found: error

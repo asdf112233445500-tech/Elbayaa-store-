@@ -26,6 +26,17 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Restore Flutter Gradle wrapper
+        run: |
+          rm -rf /tmp/flutter_android_wrapper
+          flutter create --platforms=android /tmp/flutter_android_wrapper
+          mkdir -p android/gradle/wrapper
+          cp /tmp/flutter_android_wrapper/android/gradlew android/gradlew
+          cp /tmp/flutter_android_wrapper/android/gradlew.bat android/gradlew.bat
+          cp -R /tmp/flutter_android_wrapper/android/gradle/wrapper/. android/gradle/wrapper/
+          chmod +x android/gradlew
+          ls -la android/gradle/wrapper
+
       - name: Remove generated test
         run: rm -rf test
 

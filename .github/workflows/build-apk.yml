@@ -26,6 +26,8 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Create Flutter local.properties
+        run: echo "flutter.sdk=$FLUTTER_ROOT" > android/local.properties
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:

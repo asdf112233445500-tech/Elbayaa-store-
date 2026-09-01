@@ -38,6 +38,35 @@ Future<void> main() async {
 
 SupabaseClient get supabase => Supabase.instance.client;
 
+class AppSettingsRepository {
+  static const defaultDiscountMessage = 'خصم يصل إلى 40%';
+  static const defaultWalletNumber = 'رقم المحفظة غير مضاف';
+  static const defaultInstapayPhone = 'رقم الهاتف غير مضاف';
+
+  static Future<Map<String, String>> load() async {
+    try {
+      final rows = await supabase.from('app_settings').select('key,value');
+      final result = <String, String>{};
+      for (final row in rows as List) {
+        final map = Map<String, dynamic>.from(row);
+        result['${map['key']}'] = '${map['value'] ?? ''}';
+      }
+      return result;
+    } catch (_) {
+      return {};
+    }
+  }
+
+  static Future<void> save(Map<String, String> values) async {
+    await supabase.from('app_settings').upsert(
+      values.entries
+          .map((e) => {'key': e.key, 'value': e.value})
+          .toList(),
+      onConflict: 'key',
+    );
+  }
+}
+
 ThemeData _theme() {
   return ThemeData(
     brightness: Brightness.dark,
@@ -574,12 +603,23 @@ class _HomePageState extends State<HomePage> {
   late Future<List<Product>> products;
   String search = '';
   String category = 'الكل';
-  int navIndex = 0;
+  String discountMessage = AppSettingsRepository.defaultDiscountMessage;
 
   @override
   void initState() {
     super.initState();
     products = ProductRepository.getProducts();
+    _loadSettings();
+  }
+
+  Future<void> _loadSettings() async {
+    final settings = await AppSettingsRepository.load();
+    if (!mounted) return;
+    setState(() {
+      discountMessage = settings['discount_message']?.trim().isNotEmpty == true
+          ? settings['discount_message']!.trim()
+          : AppSettingsRepository.defaultDiscountMessage;
+    });
   }
 
   void refreshProducts() {
@@ -590,13 +630,6 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    if (navIndex == 1) {
-      return const CartPage();
-    }
-    if (navIndex == 2) {
-      return const ProfilePage();
-    }
-
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
@@ -652,6 +685,7 @@ class _HomePageState extends State<HomePage> {
                 ),
                 const SizedBox(height: 16),
                 _HeroBanner(
+                  discountMessage: discountMessage,
                   onTap: () {
                     setState(() => category = 'الكل');
                   },
@@ -765,9 +799,14 @@ class _HomePageState extends State<HomePage> {
           ),
         ),
         bottomNavigationBar: NavigationBar(
-          selectedIndex: navIndex,
-          onDestinationSelected: (index) =>
-              setState(() => navIndex = index),
+          selectedIndex: 0,
+          onDestinationSelected: (index) {
+            if (index == 1) {
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const CartPage()));
+            } else if (index == 2) {
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfilePage()));
+            }
+          },
           destinations: const [
             NavigationDestination(
               icon: Icon(Icons.home_outlined),
@@ -793,7 +832,8 @@ class _HomePageState extends State<HomePage> {
 
 class _HeroBanner extends StatelessWidget {
   final VoidCallback onTap;
-  const _HeroBanner({required this.onTap});
+  final String discountMessage;
+  const _HeroBanner({required this.onTap, required this.discountMessage});
 
   @override
   Widget build(BuildContext context) {
@@ -839,9 +879,11 @@ class _HeroBanner extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 6),
-              const Text(
-                'خصم يصل إلى 40%',
-                style: TextStyle(
+              Text(
+                discountMessage,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.w900,
                 ),
@@ -1366,6 +1408,61 @@ class _PriceRow extends StatelessWidget {
    CHECKOUT
 ============================================================ */
 
+class _PaymentOption extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _PaymentOption({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: card,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: selected ? gold : Colors.white.withOpacity(.06),
+            width: selected ? 1.2 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: selected ? gold : Colors.white70),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 3),
+                  Text(subtitle, style: const TextStyle(color: muted, fontSize: 12)),
+                ],
+              ),
+            ),
+            Icon(
+              selected ? Icons.radio_button_checked : Icons.radio_button_off,
+              color: selected ? gold : muted,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class CheckoutPage extends StatefulWidget {
   final double total;
   const CheckoutPage({super.key, required this.total});
@@ -1379,6 +1476,28 @@ class _CheckoutPageState extends State<CheckoutPage> {
   final phone = TextEditingController();
   final address = TextEditingController();
   bool loading = false;
+  String paymentMethod = 'الدفع عند الاستلام';
+  String walletNumber = AppSettingsRepository.defaultWalletNumber;
+  String instapayPhone = AppSettingsRepository.defaultInstapayPhone;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPaymentSettings();
+  }
+
+  Future<void> _loadPaymentSettings() async {
+    final settings = await AppSettingsRepository.load();
+    if (!mounted) return;
+    setState(() {
+      walletNumber = settings['wallet_number']?.trim().isNotEmpty == true
+          ? settings['wallet_number']!.trim()
+          : AppSettingsRepository.defaultWalletNumber;
+      instapayPhone = settings['instapay_phone']?.trim().isNotEmpty == true
+          ? settings['instapay_phone']!.trim()
+          : AppSettingsRepository.defaultInstapayPhone;
+    });
+  }
 
   @override
   void dispose() {
@@ -1404,7 +1523,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
         'customer_name': name.text.trim(),
         'phone': phone.text.trim(),
         'address': address.text.trim(),
-        'payment_method': 'الدفع عند الاستلام',
+        'payment_method': paymentMethod,
         'total': widget.total,
         'status': 'جديد',
         'items': cart.items
@@ -1458,7 +1577,13 @@ class _CheckoutPageState extends State<CheckoutPage> {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        appBar: AppBar(title: const Text('إتمام الطلب')),
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_rounded),
+            onPressed: () => Navigator.maybePop(context),
+          ),
+          title: const Text('إتمام الطلب'),
+        ),
         body: ListView(
           padding: const EdgeInsets.all(16),
           children: [
@@ -1495,6 +1620,35 @@ class _CheckoutPageState extends State<CheckoutPage> {
               ),
             ),
             const SizedBox(height: 18),
+            const Text(
+              'طريقة الدفع',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 10),
+            _PaymentOption(
+              title: 'الدفع عند الاستلام',
+              subtitle: 'ادفع عند استلام طلبك',
+              icon: Icons.payments_outlined,
+              selected: paymentMethod == 'الدفع عند الاستلام',
+              onTap: () => setState(() => paymentMethod = 'الدفع عند الاستلام'),
+            ),
+            const SizedBox(height: 8),
+            _PaymentOption(
+              title: 'المحفظة البنكية',
+              subtitle: walletNumber,
+              icon: Icons.account_balance_wallet_outlined,
+              selected: paymentMethod == 'المحفظة البنكية',
+              onTap: () => setState(() => paymentMethod = 'المحفظة البنكية'),
+            ),
+            const SizedBox(height: 8),
+            _PaymentOption(
+              title: 'InstaPay',
+              subtitle: instapayPhone,
+              icon: Icons.phone_android_outlined,
+              selected: paymentMethod == 'InstaPay',
+              onTap: () => setState(() => paymentMethod = 'InstaPay'),
+            ),
+            const SizedBox(height: 14),
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -1503,12 +1657,12 @@ class _CheckoutPageState extends State<CheckoutPage> {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.payments_outlined, color: gold),
+                  const Icon(Icons.receipt_long_outlined, color: gold),
                   const SizedBox(width: 10),
-                  const Expanded(
+                  Expanded(
                     child: Text(
-                      'طريقة الدفع\nالدفع عند الاستلام',
-                      style: TextStyle(height: 1.5),
+                      'الطريقة المختارة\n$paymentMethod',
+                      style: const TextStyle(height: 1.5),
                     ),
                   ),
                   Text(
@@ -2150,6 +2304,100 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     }
   }
 
+  Future<void> openSettings() async {
+    final settings = await AppSettingsRepository.load();
+    final discount = TextEditingController(
+      text: settings['discount_message'] ?? AppSettingsRepository.defaultDiscountMessage,
+    );
+    final wallet = TextEditingController(
+      text: settings['wallet_number'] ?? '',
+    );
+    final instapay = TextEditingController(
+      text: settings['instapay_phone'] ?? '',
+    );
+
+    final save = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('إعدادات المتجر'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: discount,
+                maxLines: 2,
+                decoration: const InputDecoration(labelText: 'رسالة الخصومات في الواجهة'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: wallet,
+                keyboardType: TextInputType.phone,
+                decoration: const InputDecoration(labelText: 'رقم المحفظة البنكية'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: instapay,
+                keyboardType: TextInputType.phone,
+                decoration: const InputDecoration(labelText: 'رقم هاتف InstaPay'),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('إلغاء')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('حفظ')),
+        ],
+      ),
+    );
+
+    if (save == true) {
+      try {
+        await AppSettingsRepository.save({
+          'discount_message': discount.text.trim(),
+          'wallet_number': wallet.text.trim(),
+          'instapay_phone': instapay.text.trim(),
+        });
+        if (mounted) showMessage(context, 'تم حفظ إعدادات المتجر');
+      } catch (e) {
+        if (mounted) showMessage(context, 'فشل حفظ الإعدادات:\n${getSupabaseError(e)}');
+      }
+    }
+
+    discount.dispose();
+    wallet.dispose();
+    instapay.dispose();
+  }
+
+  Future<void> deleteCancelledOrders() async {
+    final cancelled = orders.where((o) => '${o['status'] ?? ''}' == 'ملغي').length;
+    if (cancelled == 0) {
+      showMessage(context, 'لا توجد طلبات ملغية للمسح');
+      return;
+    }
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('مسح الطلبات الملغية'),
+        content: Text('سيتم حذف $cancelled طلبات ملغية نهائياً. هل تريد المتابعة؟'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('إلغاء')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('مسح نهائياً')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+
+    try {
+      await supabase.from('orders').delete().eq('status', 'ملغي');
+      await load();
+      if (mounted) showMessage(context, 'تم مسح الطلبات الملغية');
+    } catch (e) {
+      if (mounted) showMessage(context, 'فشل مسح الطلبات:\n${getSupabaseError(e)}');
+    }
+  }
+
   Future<void> changeOrderStatus(Map<String, dynamic> order) async {
     const statuses = [
       'جديد',
@@ -2219,11 +2467,20 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_rounded),
+            onPressed: () => Navigator.maybePop(context),
+          ),
           title: const Text(
             'لوحة التحكم',
             style: TextStyle(fontWeight: FontWeight.w900),
           ),
           actions: [
+            IconButton(
+              onPressed: openSettings,
+              tooltip: 'إعدادات المتجر',
+              icon: const Icon(Icons.settings_outlined),
+            ),
             IconButton(
               onPressed: loading ? null : load,
               icon: const Icon(Icons.refresh_rounded),
@@ -2308,6 +2565,26 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                       ),
                     const SizedBox(height: 24),
                     const SectionTitle(title: 'إدارة الطلبات'),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: openSettings,
+                            icon: const Icon(Icons.tune_rounded),
+                            label: const Text('إعدادات المتجر'),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: deleteCancelledOrders,
+                            icon: const Icon(Icons.delete_sweep_outlined),
+                            label: const Text('مسح الملغية'),
+                          ),
+                        ),
+                      ],
+                    ),
                     const SizedBox(height: 10),
                     if (orders.isEmpty)
                       const _EmptyCard(text: 'لا توجد طلبات حالياً')

@@ -1,8 +1,5 @@
 
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 const supabaseUrl = 'https://bhtxloxmasrfkkpdogws.supabase.co';
@@ -16,17 +13,6 @@ const surface = Color(0xFF101010);
 const card = Color(0xFF171717);
 const card2 = Color(0xFF202020);
 const muted = Color(0xFF9E9E9E);
-
-const productCategories = <String>[
-  'سماعات',
-  'شواحن',
-  'كابلات',
-  'كفرات وجرابات',
-  'حماية الشاشة',
-  'حوامل',
-  'باور بانك',
-  'إكسسوارات أخرى',
-];
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -287,7 +273,7 @@ class Product {
       name: '${m['name'] ?? 'منتج'}',
       price: '${m['price'] ?? 0}',
       oldPrice: '${m['old_price'] ?? ''}',
-      image: '${m['image_url'] ?? m['image'] ?? ''}',
+      image: '${m['image'] ?? m['image_url'] ?? ''}',
       category: '${m['category'] ?? ''}',
       rating: double.tryParse('${m['rating'] ?? 0}') ?? 0,
     );
@@ -626,12 +612,12 @@ class _HomePageState extends State<HomePage> {
                   children: [
                     const Expanded(child: ElbayaaLogo(size: 54)),
                     IconButton(
-                      onPressed: () => setState(() => navIndex = 2),
+                      onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfilePage())),
                       icon: const Icon(Icons.person_outline),
                       color: Colors.white,
                     ),
                     IconButton(
-                      onPressed: () => setState(() => navIndex = 1),
+                      onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CartPage())),
                       icon: const CartIcon(),
                     ),
                   ],
@@ -1215,6 +1201,10 @@ class _CartPageState extends State<CartPage> {
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_rounded),
+            onPressed: () => Navigator.pop(context),
+          ),
           title: Text('السلة (${cart.count})'),
         ),
         body: cart.items.isEmpty
@@ -1620,7 +1610,13 @@ class ProfilePage extends StatelessWidget {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        appBar: AppBar(title: const Text('حسابي')),
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_rounded),
+            onPressed: () => Navigator.pop(context),
+          ),
+          title: const Text('حسابي'),
+        ),
         body: ListView(
           padding: const EdgeInsets.all(16),
           children: [
@@ -1971,26 +1967,14 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     final oldPrice = TextEditingController(
       text: '${existing?['old_price'] ?? ''}',
     );
-    final existingCategory = '${existing?['category'] ?? ''}';
-    String selectedCategory = productCategories.contains(existingCategory)
-        ? existingCategory
-        : productCategories.first;
-    String imageUrl = '${existing?['image_url'] ?? existing?['image'] ?? ''}';
-    XFile? selectedImage;
-    bool active = existing?['active'] != false;
+    final category = TextEditingController(
+      text: '${existing?['category'] ?? ''}',
+    );
+    final image = TextEditingController(
+      text: '${existing?['image'] ?? ''}',
+    );
 
-    Future<void> pickImage(StateSetter setDialogState) async {
-      final picker = ImagePicker();
-      final picked = await picker.pickImage(
-        source: ImageSource.gallery,
-        imageQuality: 85,
-        maxWidth: 1600,
-      );
-      if (picked == null) return;
-      setDialogState(() {
-        selectedImage = picked;
-      });
-    }
+    bool active = existing?['active'] != false;
 
     final result = await showDialog<bool>(
       context: context,
@@ -2024,84 +2008,15 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                     ),
                   ),
                   const SizedBox(height: 10),
-                  DropdownButtonFormField<String>(
-                    value: selectedCategory,
-                    decoration: const InputDecoration(
-                      labelText: 'القسم',
-                      prefixIcon: Icon(Icons.category_outlined),
-                    ),
-                    items: productCategories
-                        .map((item) => DropdownMenuItem(
-                              value: item,
-                              child: Text(item),
-                            ))
-                        .toList(),
-                    onChanged: (value) {
-                      if (value != null) {
-                        setDialogState(() => selectedCategory = value);
-                      }
-                    },
+                  TextField(
+                    controller: category,
+                    decoration: const InputDecoration(labelText: 'القسم'),
                   ),
                   const SizedBox(height: 10),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF0D0D0D),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.white.withOpacity(.06)),
-                    ),
-                    child: Column(
-                      children: [
-                        if (selectedImage != null || imageUrl.isNotEmpty)
-                          SizedBox(
-                            height: 150,
-                            width: double.infinity,
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: selectedImage != null
-                                  ? FutureBuilder<Uint8List>(
-                                      future: selectedImage!.readAsBytes(),
-                                      builder: (_, snapshot) {
-                                        if (!snapshot.hasData) {
-                                          return const Center(
-                                            child: CircularProgressIndicator(color: gold),
-                                          );
-                                        }
-                                        return Image.memory(
-                                          snapshot.data!,
-                                          fit: BoxFit.contain,
-                                        );
-                                      },
-                                    )
-                                  : Image.network(
-                                      imageUrl,
-                                      fit: BoxFit.contain,
-                                      errorBuilder: (_, __, ___) =>
-                                          const _ImageFallback(),
-                                    ),
-                            ),
-                          )
-                        else
-                          const Padding(
-                            padding: EdgeInsets.all(20),
-                            child: Icon(Icons.image_outlined, size: 55, color: muted),
-                          ),
-                        const SizedBox(height: 10),
-                        SizedBox(
-                          width: double.infinity,
-                          child: OutlinedButton.icon(
-                            onPressed: () => pickImage(setDialogState),
-                            icon: const Icon(Icons.photo_library_outlined),
-                            label: Text(selectedImage == null ? 'اختيار صورة من الهاتف' : 'تغيير الصورة'),
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        const Text(
-                          'سيتم رفع الصورة تلقائياً إلى Supabase عند الحفظ',
-                          style: TextStyle(color: muted, fontSize: 11),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
+                  TextField(
+                    controller: image,
+                    decoration: const InputDecoration(
+                      labelText: 'رابط الصورة أو Emoji',
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -2134,6 +2049,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       name.dispose();
       price.dispose();
       oldPrice.dispose();
+      category.dispose();
+      image.dispose();
       return;
     }
 
@@ -2142,45 +2059,21 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       name.dispose();
       price.dispose();
       oldPrice.dispose();
+      category.dispose();
+      image.dispose();
       return;
     }
 
     try {
-      if (selectedImage != null) {
-        final bytes = await selectedImage!.readAsBytes();
-        final extension = selectedImage!.name.toLowerCase().split('.').last;
-        final safeExtension = ['jpg', 'jpeg', 'png', 'webp'].contains(extension)
-            ? extension
-            : 'jpg';
-        final path = 'products/${DateTime.now().millisecondsSinceEpoch}_${name.text.trim().hashCode}.$safeExtension';
-        final contentType = safeExtension == 'png'
-            ? 'image/png'
-            : safeExtension == 'webp'
-                ? 'image/webp'
-                : 'image/jpeg';
-
-        await supabase.storage.from('products').uploadBinary(
-          path,
-          bytes,
-          fileOptions: FileOptions(
-            contentType: contentType,
-            upsert: true,
-          ),
-        );
-        imageUrl = supabase.storage.from('products').getPublicUrl(path);
-      }
-
       final payload = {
         'name': name.text.trim(),
         'price': double.tryParse(
               price.text.trim().replaceAll(',', '.'),
             ) ??
             0,
-        'old_price': oldPrice.text.trim().isEmpty
-            ? null
-            : double.tryParse(oldPrice.text.trim().replaceAll(',', '.')),
-        'category': selectedCategory,
-        'image_url': imageUrl.isEmpty ? null : imageUrl,
+        'old_price': oldPrice.text.trim(),
+        'category': category.text.trim(),
+        'image': image.text.trim(),
         'active': active,
       };
 
@@ -2203,6 +2096,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       name.dispose();
       price.dispose();
       oldPrice.dispose();
+      category.dispose();
+      image.dispose();
     }
   }
 

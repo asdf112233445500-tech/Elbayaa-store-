@@ -52,6 +52,14 @@ jobs:
       - name: Build release APK
         run: flutter build apk --release --no-tree-shake-icons
 
+      - name: Diagnose build outputs
+        if: always()
+        run: |
+          echo "=== APK files ==="
+          find . -type f -name "*.apk" -print
+          echo "=== App outputs ==="
+          find build android/app/build -maxdepth 6 -type f 2>/dev/null | head -200
+
       - name: Verify APK
         run: |
           APK="build/app/outputs/flutter-apk/app-release.apk"

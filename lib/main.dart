@@ -3333,9 +3333,14 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           ),
           actions: [
             IconButton(
-              onPressed: openSettings,
+              tooltip: 'إدارة الأقسام',
+              icon: const Icon(Icons.category_outlined),
+              onPressed: manageCategories,
+            ),
+            IconButton(
               tooltip: 'إعدادات المتجر',
               icon: const Icon(Icons.settings_outlined),
+              onPressed: openSettings,
             ),
             IconButton(
               onPressed: loading ? null : load,

@@ -1,5 +1,8 @@
 
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 const supabaseUrl = 'https://bhtxloxmasrfkkpdogws.supabase.co';
@@ -274,6 +277,31 @@ class ElbayaaLogo extends StatelessWidget {
    PRODUCT
 ============================================================ */
 
+const productCategories = <String>[
+  'سماعات',
+  'شواحن',
+  'كابلات',
+  'كفرات وجرابات',
+  'حماية الشاشة',
+  'حوامل',
+  'باور بانك',
+  'إكسسوارات أخرى',
+];
+
+const productColors = <String, Color>{
+  'أسود': Colors.black,
+  'أبيض': Colors.white,
+  'أحمر': Colors.red,
+  'أزرق': Colors.blue,
+  'أخضر': Colors.green,
+  'أصفر': Colors.yellow,
+  'برتقالي': Colors.orange,
+  'بنفسجي': Colors.purple,
+  'وردي': Colors.pink,
+  'ذهبي': Color(0xFFFFD54F),
+  'فضي': Color(0xFFBDBDBD),
+};
+
 class Product {
   final dynamic id;
   final String name;
@@ -281,6 +309,8 @@ class Product {
   final String oldPrice;
   final String image;
   final String category;
+  final String description;
+  final List<String> colors;
   final double rating;
 
   Product({
@@ -290,6 +320,8 @@ class Product {
     this.oldPrice = '',
     this.image = '',
     this.category = '',
+    this.description = '',
+    this.colors = const [],
     this.rating = 0,
   });
 
@@ -297,13 +329,21 @@ class Product {
       double.tryParse(price.replaceAll(',', '.')) ?? 0;
 
   factory Product.fromMap(Map<String, dynamic> m) {
+    final rawColors = m['colors'];
+    final parsedColors = rawColors is List
+        ? rawColors.map((e) => '$e').toList()
+        : (rawColors is String && rawColors.trim().isNotEmpty
+            ? rawColors.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList()
+            : <String>[]);
     return Product(
       id: m['id'],
       name: '${m['name'] ?? 'منتج'}',
       price: '${m['price'] ?? 0}',
       oldPrice: '${m['old_price'] ?? ''}',
-      image: '${m['image'] ?? m['image_url'] ?? ''}',
+      image: '${m['image_url'] ?? m['image'] ?? ''}',
       category: '${m['category'] ?? ''}',
+      description: '${m['description'] ?? ''}',
+      colors: parsedColors,
       rating: double.tryParse('${m['rating'] ?? 0}') ?? 0,
     );
   }
@@ -1167,6 +1207,50 @@ class ProductPage extends StatelessWidget {
                 ],
               ],
             ),
+            if (product.description.trim().isNotEmpty) ...[
+              const SizedBox(height: 18),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: card,
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Text(
+                  product.description,
+                  style: const TextStyle(color: Colors.white70, height: 1.6),
+                ),
+              ),
+            ],
+            if (product.colors.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: card,
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    const Text(
+                      'الألوان:',
+                      style: TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                    ...product.colors.map(
+                      (name) => Chip(
+                        avatar: CircleAvatar(
+                          backgroundColor:
+                              productColors[name] ?? Colors.grey,
+                        ),
+                        label: Text(name),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 20),
             Container(
               padding: const EdgeInsets.all(16),
@@ -2121,14 +2205,79 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     final oldPrice = TextEditingController(
       text: '${existing?['old_price'] ?? ''}',
     );
-    final category = TextEditingController(
-      text: '${existing?['category'] ?? ''}',
-    );
-    final image = TextEditingController(
-      text: '${existing?['image'] ?? ''}',
+    final description = TextEditingController(
+      text: '${existing?['description'] ?? ''}',
     );
 
+    final existingCategory = '${existing?['category'] ?? ''}'.trim();
+    String selectedCategory = productCategories.contains(existingCategory)
+        ? existingCategory
+        : productCategories.first;
+
+    final rawExistingColors = existing?['colors'];
+    final selectedColors = <String>{
+      if (rawExistingColors is List)
+        ...rawExistingColors.map((e) => '$e'),
+      if (rawExistingColors is String && rawExistingColors.trim().isNotEmpty)
+        ...rawExistingColors
+            .split(',')
+            .map((e) => e.trim())
+            .where((e) => e.isNotEmpty),
+    };
+
+    String imageUrl = '${existing?['image_url'] ?? existing?['image'] ?? ''}';
+    Uint8List? selectedImageBytes;
+    String? selectedImageName;
+    bool uploadingImage = false;
     bool active = existing?['active'] != false;
+
+    Future<void> pickImage(void Function(void Function()) setDialogState) async {
+      try {
+        final picked = await ImagePicker().pickImage(
+          source: ImageSource.gallery,
+          imageQuality: 90,
+        );
+        if (picked == null) return;
+        final bytes = await picked.readAsBytes();
+        setDialogState(() {
+          selectedImageBytes = bytes;
+          selectedImageName = picked.name;
+        });
+      } catch (e) {
+        if (mounted) {
+          showMessage(context, 'تعذر اختيار الصورة:\n${getSupabaseError(e)}');
+        }
+      }
+    }
+
+    Future<void> uploadSelectedImage(
+      void Function(void Function()) setDialogState,
+    ) async {
+      if (selectedImageBytes == null) return;
+      setDialogState(() => uploadingImage = true);
+      try {
+        final safeName = (selectedImageName ?? 'product.jpg')
+            .replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
+        final path =
+            'products/${DateTime.now().millisecondsSinceEpoch}_$safeName';
+        await supabase.storage.from('products').uploadBinary(
+          path,
+          selectedImageBytes!,
+          fileOptions: const FileOptions(upsert: true),
+        );
+        imageUrl = supabase.storage.from('products').getPublicUrl(path);
+        setDialogState(() {
+          selectedImageBytes = null;
+          selectedImageName = null;
+        });
+      } catch (e) {
+        if (mounted) {
+          showMessage(context, 'فشل رفع الصورة:\n${getSupabaseError(e)}');
+        }
+      } finally {
+        setDialogState(() => uploadingImage = false);
+      }
+    }
 
     final result = await showDialog<bool>(
       context: context,
@@ -2162,17 +2311,131 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                     ),
                   ),
                   const SizedBox(height: 10),
-                  TextField(
-                    controller: category,
+                  DropdownButtonFormField<String>(
+                    value: selectedCategory,
                     decoration: const InputDecoration(labelText: 'القسم'),
+                    items: productCategories
+                        .map(
+                          (item) => DropdownMenuItem(
+                            value: item,
+                            child: Text(item),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) {
+                      if (value != null) {
+                        setDialogState(() => selectedCategory = value);
+                      }
+                    },
                   ),
                   const SizedBox(height: 10),
                   TextField(
-                    controller: image,
+                    controller: description,
+                    maxLines: 4,
                     decoration: const InputDecoration(
-                      labelText: 'رابط الصورة أو Emoji',
+                      labelText: 'وصف المنتج',
+                      hintText: 'اكتب وصف المنتج بالتفصيل',
+                      alignLabelWithHint: true,
                     ),
                   ),
+                  const SizedBox(height: 12),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      'ألوان المنتج',
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: productColors.entries.map((entry) {
+                      final selected = selectedColors.contains(entry.key);
+                      return FilterChip(
+                        selected: selected,
+                        label: Text(entry.key),
+                        avatar: CircleAvatar(
+                          backgroundColor: entry.value,
+                        ),
+                        selectedColor: gold.withOpacity(.22),
+                        checkmarkColor: gold,
+                        onSelected: (value) {
+                          setDialogState(() {
+                            if (value) {
+                              selectedColors.add(entry.key);
+                            } else {
+                              selectedColors.remove(entry.key);
+                            }
+                          });
+                        },
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 12),
+                  if (selectedImageBytes != null)
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: Image.memory(
+                        selectedImageBytes!,
+                        height: 150,
+                        width: double.infinity,
+                        fit: BoxFit.contain,
+                      ),
+                    )
+                  else if (imageUrl.startsWith('http'))
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: Image.network(
+                        imageUrl,
+                        height: 150,
+                        width: double.infinity,
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, __, ___) =>
+                            const _ImageFallback(),
+                      ),
+                    ),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: uploadingImage
+                        ? null
+                        : () => pickImage(setDialogState),
+                    icon: const Icon(Icons.photo_library_outlined),
+                    label: Text(
+                      selectedImageBytes == null
+                          ? 'اختيار صورة من الهاتف'
+                          : 'تغيير الصورة',
+                    ),
+                  ),
+                  if (selectedImageBytes != null) ...[
+                    const SizedBox(height: 6),
+                    FilledButton.icon(
+                      onPressed: uploadingImage
+                          ? null
+                          : () => uploadSelectedImage(setDialogState),
+                      icon: uploadingImage
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.black,
+                              ),
+                            )
+                          : const Icon(Icons.cloud_upload_outlined),
+                      label: Text(
+                        uploadingImage ? 'جاري رفع الصورة...' : 'رفع الصورة',
+                      ),
+                    ),
+                  ],
+                  if (imageUrl.isNotEmpty && !imageUrl.startsWith('http'))
+                    const Padding(
+                      padding: EdgeInsets.only(top: 6),
+                      child: Text(
+                        'الصورة الحالية محفوظة كبيانات قديمة.',
+                        style: TextStyle(color: muted, fontSize: 11),
+                      ),
+                    ),
                   const SizedBox(height: 8),
                   SwitchListTile(
                     value: active,
@@ -2190,7 +2453,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                 child: const Text('إلغاء'),
               ),
               FilledButton(
-                onPressed: () => Navigator.pop(dialogContext, true),
+                onPressed: uploadingImage
+                    ? null
+                    : () => Navigator.pop(dialogContext, true),
                 child: const Text('حفظ'),
               ),
             ],
@@ -2203,8 +2468,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       name.dispose();
       price.dispose();
       oldPrice.dispose();
-      category.dispose();
-      image.dispose();
+      description.dispose();
       return;
     }
 
@@ -2213,12 +2477,24 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       name.dispose();
       price.dispose();
       oldPrice.dispose();
-      category.dispose();
-      image.dispose();
+      description.dispose();
       return;
     }
 
     try {
+      if (selectedImageBytes != null) {
+        final safeName = (selectedImageName ?? 'product.jpg')
+            .replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
+        final path =
+            'products/${DateTime.now().millisecondsSinceEpoch}_$safeName';
+        await supabase.storage.from('products').uploadBinary(
+          path,
+          selectedImageBytes!,
+          fileOptions: const FileOptions(upsert: true),
+        );
+        imageUrl = supabase.storage.from('products').getPublicUrl(path);
+      }
+
       final payload = {
         'name': name.text.trim(),
         'price': double.tryParse(
@@ -2226,8 +2502,10 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             ) ??
             0,
         'old_price': oldPrice.text.trim(),
-        'category': category.text.trim(),
-        'image': image.text.trim(),
+        'category': selectedCategory,
+        'description': description.text.trim(),
+        'image_url': imageUrl.trim(),
+        'colors': selectedColors.toList(),
         'active': active,
       };
 
@@ -2250,8 +2528,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       name.dispose();
       price.dispose();
       oldPrice.dispose();
-      category.dispose();
-      image.dispose();
+      description.dispose();
     }
   }
 

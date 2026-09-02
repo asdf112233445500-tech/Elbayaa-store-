@@ -2399,63 +2399,251 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   }
 
   Future<void> changeOrderStatus(Map<String, dynamic> order) async {
-    const statuses = [
-      'جديد',
-      'قيد التجهيز',
-      'تم الشحن',
-      'تم التسليم',
-      'ملغي',
-    ];
+    final statuses = ['جديد', 'قيد التجهيز', 'تم الشحن', 'تم التسليم', 'ملغي'];
+    final payments = ['الدفع عند الاستلام', 'المحفظة البنكية', 'InstaPay'];
 
-    final status = await showModalBottomSheet<String>(
+    final currentStatus = '${order['status'] ?? ''}'.trim();
+    final currentPayment = '${order['payment_method'] ?? ''}'.trim();
+
+    if (currentStatus.isNotEmpty && !statuses.contains(currentStatus)) {
+      statuses.add(currentStatus);
+    }
+    if (currentPayment.isNotEmpty && !payments.contains(currentPayment)) {
+      payments.add(currentPayment);
+    }
+
+    final customerName =
+        TextEditingController(text: '${order['customer_name'] ?? ''}');
+    final phone = TextEditingController(text: '${order['phone'] ?? ''}');
+    final address = TextEditingController(text: '${order['address'] ?? ''}');
+    final total = TextEditingController(text: '${order['total'] ?? 0}');
+
+    String selectedStatus =
+        currentStatus.isNotEmpty ? currentStatus : statuses.first;
+    String selectedPayment =
+        currentPayment.isNotEmpty ? currentPayment : payments.first;
+
+    final rawItems = order['items'];
+    final items = rawItems is List
+        ? rawItems
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList()
+        : <Map<String, dynamic>>[];
+
+    for (final item in items) {
+      item['quantity'] = int.tryParse('${item['quantity'] ?? 1}') ?? 1;
+    }
+
+    final saved = await showDialog<bool>(
       context: context,
-      backgroundColor: surface,
-      showDragHandle: true,
-      builder: (_) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(20, 5, 20, 10),
-              child: Align(
-                alignment: Alignment.centerRight,
-                child: Text(
-                  'تغيير حالة الطلب',
-                  style: TextStyle(
-                    fontSize: 19,
-                    fontWeight: FontWeight.w900,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('إدارة الطلب'),
+              content: SizedBox(
+                width: 520,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: Text('طلب رقم #${order['id'] ?? ''}'),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: customerName,
+                        decoration: const InputDecoration(
+                          labelText: 'اسم العميل',
+                          prefixIcon: Icon(Icons.person_outline),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: phone,
+                        keyboardType: TextInputType.phone,
+                        decoration: const InputDecoration(
+                          labelText: 'رقم الهاتف',
+                          prefixIcon: Icon(Icons.phone_outlined),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: address,
+                        maxLines: 2,
+                        decoration: const InputDecoration(
+                          labelText: 'العنوان',
+                          prefixIcon: Icon(Icons.location_on_outlined),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      DropdownButtonFormField<String>(
+                        value: selectedStatus,
+                        decoration:
+                            const InputDecoration(labelText: 'حالة الطلب'),
+                        items: statuses
+                            .map((s) => DropdownMenuItem(
+                                  value: s,
+                                  child: Text(s),
+                                ))
+                            .toList(),
+                        onChanged: (v) {
+                          if (v != null) {
+                            setState(() => selectedStatus = v);
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 10),
+                      DropdownButtonFormField<String>(
+                        value: selectedPayment,
+                        decoration:
+                            const InputDecoration(labelText: 'طريقة الدفع'),
+                        items: payments
+                            .map((p) => DropdownMenuItem(
+                                  value: p,
+                                  child: Text(p),
+                                ))
+                            .toList(),
+                        onChanged: (v) {
+                          if (v != null) {
+                            setState(() => selectedPayment = v);
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: total,
+                        keyboardType:
+                            const TextInputType.numberWithOptions(decimal: true),
+                        decoration: const InputDecoration(
+                          labelText: 'إجمالي الطلب',
+                          suffixText: 'ج.م',
+                        ),
+                      ),
+                      if (items.isNotEmpty) ...[
+                        const SizedBox(height: 16),
+                        const Align(
+                          alignment: Alignment.centerRight,
+                          child: Text(
+                            'المنتجات والكميات',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        ...items.map((item) {
+                          final name = '${item['name'] ?? 'منتج'}';
+                          final quantity =
+                              int.tryParse('${item['quantity'] ?? 1}') ?? 1;
+
+                          return Card(
+                            child: ListTile(
+                              title: Text(name),
+                              subtitle: Text('${item['price'] ?? 0} ج.م'),
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    onPressed: quantity > 1
+                                        ? () => setState(() {
+                                              item['quantity'] = quantity - 1;
+                                            })
+                                        : null,
+                                    icon: const Icon(
+                                      Icons.remove_circle_outline,
+                                    ),
+                                  ),
+                                  Text(
+                                    '$quantity',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  IconButton(
+                                    onPressed: () => setState(() {
+                                      item['quantity'] = quantity + 1;
+                                    }),
+                                    icon: const Icon(
+                                      Icons.add_circle_outline,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }),
+                      ],
+                    ],
                   ),
                 ),
               ),
-            ),
-            ...statuses.map(
-              (status) => ListTile(
-                leading: const Icon(Icons.circle, color: gold, size: 12),
-                title: Text(status),
-                onTap: () => Navigator.pop(context, status),
-              ),
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext, false),
+                  child: const Text('إلغاء'),
+                ),
+                FilledButton(
+                  onPressed: () async {
+                    final name = customerName.text.trim();
+                    final phoneValue = phone.text.trim();
+                    final addressValue = address.text.trim();
+                    final totalValue = double.tryParse(
+                      total.text.trim().replaceAll(',', '.'),
+                    );
+
+                    if (name.isEmpty ||
+                        phoneValue.isEmpty ||
+                        addressValue.isEmpty ||
+                        totalValue == null) {
+                      showMessage(
+                        context,
+                        'من فضلك أكمل بيانات العميل والإجمالي بشكل صحيح',
+                      );
+                      return;
+                    }
+
+                    try {
+                      await supabase.from('orders').update({
+                        'customer_name': name,
+                        'phone': phoneValue,
+                        'address': addressValue,
+                        'payment_method': selectedPayment,
+                        'total': totalValue,
+                        'status': selectedStatus,
+                        'items': items,
+                      }).eq('id', order['id']);
+
+                      if (dialogContext.mounted) {
+                        Navigator.pop(dialogContext, true);
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        showMessage(context, getSupabaseError(e));
+                      }
+                    }
+                  },
+                  child: const Text('حفظ التعديلات'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
 
-    if (status == null) return;
+    customerName.dispose();
+    phone.dispose();
+    address.dispose();
+    total.dispose();
 
-    try {
-      await supabase
-          .from('orders')
-          .update({'status': status})
-          .eq('id', order['id']);
+    if (saved == true && context.mounted) {
       await load();
-    } catch (e) {
-      if (mounted) {
-        showMessage(context, 'فشل تحديث الطلب:\n${getSupabaseError(e)}');
+      if (context.mounted) {
+        showMessage(context, 'تم حفظ تعديلات الطلب بنجاح');
       }
     }
   }
-
   @override
   Widget build(BuildContext context) {
     final activeCount =

@@ -288,6 +288,76 @@ const productCategories = <String>[
   'إكسسوارات أخرى',
 ];
 
+
+class Category {
+  final dynamic id;
+  final String name;
+  final String imageUrl;
+  final String icon;
+  final int sortOrder;
+  final bool active;
+
+  const Category({
+    this.id,
+    required this.name,
+    this.imageUrl = '',
+    this.icon = '',
+    this.sortOrder = 0,
+    this.active = true,
+  });
+
+  factory Category.fromMap(Map<String, dynamic> m) {
+    return Category(
+      id: m['id'],
+      name: '${m['name'] ?? ''}',
+      imageUrl: '${m['image_url'] ?? ''}',
+      icon: '${m['icon'] ?? ''}',
+      sortOrder: int.tryParse('${m['sort_order'] ?? 0}') ?? 0,
+      active: m['active'] == true,
+    );
+  }
+}
+
+class CategoryRepository {
+  static Future<List<Category>> getCategories({
+    bool includeInactive = false,
+  }) async {
+    try {
+      final data = includeInactive
+          ? await supabase
+              .from('categories')
+              .select()
+              .order('sort_order', ascending: true)
+          : await supabase
+              .from('categories')
+              .select()
+              .eq('active', true)
+              .order('sort_order', ascending: true);
+
+      final list = (data as List)
+          .map((e) => Category.fromMap(Map<String, dynamic>.from(e)))
+          .where((e) => e.name.trim().isNotEmpty)
+          .toList();
+
+      if (list.isNotEmpty) return list;
+    } catch (e) {
+      debugPrint('CATEGORIES ERROR: $e');
+    }
+
+    return productCategories
+        .asMap()
+        .entries
+        .map(
+          (e) => Category(
+            id: e.key + 1,
+            name: e.value,
+            sortOrder: e.key + 1,
+          ),
+        )
+        .toList();
+  }
+}
+
 const productColors = <String, Color>{
   'أسود': Colors.black,
   'أبيض': Colors.white,
@@ -2153,6 +2223,7 @@ class AdminDashboardPage extends StatefulWidget {
 class _AdminDashboardPageState extends State<AdminDashboardPage> {
   List<Map<String, dynamic>> products = [];
   List<Map<String, dynamic>> orders = [];
+  List<Category> categories = [];
   bool loading = true;
 
   @override
@@ -2175,6 +2246,10 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           .select()
           .order('id', ascending: false);
 
+      final c = await CategoryRepository.getCategories(
+        includeInactive: true,
+      );
+
       products = (p as List)
           .map((e) => Map<String, dynamic>.from(e))
           .toList();
@@ -2182,6 +2257,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       orders = (o as List)
           .map((e) => Map<String, dynamic>.from(e))
           .toList();
+
+      categories = c;
     } catch (e) {
       if (mounted) showMessage(context, 'خطأ في تحميل البيانات:\n${getSupabaseError(e)}');
     } finally {
@@ -2210,9 +2287,25 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     );
 
     final existingCategory = '${existing?['category'] ?? ''}'.trim();
-    String selectedCategory = productCategories.contains(existingCategory)
+
+    final categoryNames = categories
+        .where((c) => c.active || c.name == existingCategory)
+        .map((c) => c.name)
+        .where((name) => name.trim().isNotEmpty)
+        .toList();
+
+    if (categoryNames.isEmpty) {
+      categoryNames.addAll(productCategories);
+    }
+
+    if (existingCategory.isNotEmpty &&
+        !categoryNames.contains(existingCategory)) {
+      categoryNames.insert(0, existingCategory);
+    }
+
+    String selectedCategory = categoryNames.contains(existingCategory)
         ? existingCategory
-        : productCategories.first;
+        : categoryNames.first;
 
     final rawExistingColors = existing?['colors'];
     final selectedColors = <String>{
@@ -2314,7 +2407,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                   DropdownButtonFormField<String>(
                     value: selectedCategory,
                     decoration: const InputDecoration(labelText: 'القسم'),
-                    items: productCategories
+                    items: categoryNames
                         .map(
                           (item) => DropdownMenuItem(
                             value: item,
@@ -2579,6 +2672,304 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         showMessage(context, 'فشل تغيير الحالة:\n${getSupabaseError(e)}');
       }
     }
+  }
+
+  Future<void> addCategory() async {
+    final controller = TextEditingController();
+
+    final name = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('إضافة قسم'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: 'اسم القسم',
+            hintText: 'مثال: كفرات وجرابات',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final value = controller.text.trim();
+              if (value.isNotEmpty) Navigator.pop(context, value);
+            },
+            child: const Text('إضافة'),
+          ),
+        ],
+      ),
+    );
+
+    if (name == null || name.trim().isEmpty) return;
+
+    try {
+      final exists = await supabase
+          .from('categories')
+          .select('id')
+          .eq('name', name.trim())
+          .maybeSingle();
+
+      if (exists != null) {
+        if (mounted) showMessage(context, 'القسم موجود بالفعل');
+        return;
+      }
+
+      await supabase.from('categories').insert({
+        'name': name.trim(),
+        'sort_order': categories.length + 1,
+        'active': true,
+      });
+
+      await load();
+      if (mounted) showMessage(context, 'تم إضافة القسم بنجاح');
+    } catch (e) {
+      if (mounted) {
+        showMessage(context, 'تعذر إضافة القسم:\n${getSupabaseError(e)}');
+      }
+    }
+  }
+
+  Future<void> editCategory(Category category) async {
+    final controller = TextEditingController(text: category.name);
+
+    final name = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('تعديل القسم'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(labelText: 'اسم القسم'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final value = controller.text.trim();
+              if (value.isNotEmpty) Navigator.pop(context, value);
+            },
+            child: const Text('حفظ'),
+          ),
+        ],
+      ),
+    );
+
+    if (name == null || name.trim().isEmpty) return;
+    if (name.trim() == category.name) return;
+
+    try {
+      final exists = await supabase
+          .from('categories')
+          .select('id')
+          .eq('name', name.trim())
+          .neq('id', category.id)
+          .maybeSingle();
+
+      if (exists != null) {
+        if (mounted) showMessage(context, 'يوجد قسم بهذا الاسم بالفعل');
+        return;
+      }
+
+      await supabase
+          .from('categories')
+          .update({'name': name.trim()})
+          .eq('id', category.id);
+
+      await load();
+      if (mounted) showMessage(context, 'تم تعديل القسم بنجاح');
+    } catch (e) {
+      if (mounted) {
+        showMessage(context, 'تعذر تعديل القسم:\n${getSupabaseError(e)}');
+      }
+    }
+  }
+
+  Future<void> toggleCategory(Category category) async {
+    try {
+      await supabase
+          .from('categories')
+          .update({'active': !category.active})
+          .eq('id', category.id);
+
+      await load();
+      if (mounted) {
+        showMessage(
+          context,
+          category.active ? 'تم إخفاء القسم' : 'تم إظهار القسم',
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        showMessage(context, 'تعذر تغيير حالة القسم:\n${getSupabaseError(e)}');
+      }
+    }
+  }
+
+  Future<void> deleteCategory(Category category) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('حذف القسم'),
+        content: Text(
+          'هل أنت متأكد من حذف قسم "${category.name}"؟',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('حذف'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    try {
+      final linked = await supabase
+          .from('products')
+          .select('id')
+          .eq('category', category.name)
+          .limit(1);
+
+      if ((linked as List).isNotEmpty) {
+        if (mounted) {
+          showMessage(
+            context,
+            'لا يمكن حذف القسم لأنه مرتبط بمنتجات. يمكنك إخفاؤه بدلًا من ذلك.',
+          );
+        }
+        return;
+      }
+
+      await supabase.from('categories').delete().eq('id', category.id);
+
+      await load();
+      if (mounted) showMessage(context, 'تم حذف القسم');
+    } catch (e) {
+      if (mounted) {
+        showMessage(context, 'تعذر حذف القسم:\n${getSupabaseError(e)}');
+      }
+    }
+  }
+
+  Future<void> manageCategories() async {
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return SizedBox(
+              height: MediaQuery.of(context).size.height * 0.78,
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 14, 8, 8),
+                    child: Row(
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'إدارة الأقسام',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.pop(context),
+                          icon: const Icon(Icons.close),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  Expanded(
+                    child: categories.isEmpty
+                        ? const Center(child: Text('لا توجد أقسام'))
+                        : ListView.builder(
+                            itemCount: categories.length,
+                            itemBuilder: (context, index) {
+                              final category = categories[index];
+
+                              return ListTile(
+                                leading: CircleAvatar(
+                                  child: Text('${index + 1}'),
+                                ),
+                                title: Text(category.name),
+                                subtitle: Text(
+                                  category.active ? 'ظاهر' : 'مخفي',
+                                ),
+                                trailing: PopupMenuButton<String>(
+                                  onSelected: (value) async {
+                                    if (value == 'edit') {
+                                      await editCategory(category);
+                                    } else if (value == 'toggle') {
+                                      await toggleCategory(category);
+                                    } else if (value == 'delete') {
+                                      await deleteCategory(category);
+                                    }
+
+                                    if (mounted) setSheetState(() {});
+                                  },
+                                  itemBuilder: (context) => [
+                                    const PopupMenuItem(
+                                      value: 'edit',
+                                      child: Text('تعديل الاسم'),
+                                    ),
+                                    PopupMenuItem(
+                                      value: 'toggle',
+                                      child: Text(
+                                        category.active
+                                            ? 'إخفاء القسم'
+                                            : 'إظهار القسم',
+                                      ),
+                                    ),
+                                    const PopupMenuItem(
+                                      value: 'delete',
+                                      child: Text('حذف القسم'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                  SafeArea(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed: () async {
+                            await addCategory();
+                            if (mounted) setSheetState(() {});
+                          },
+                          icon: const Icon(Icons.add),
+                          label: const Text('إضافة قسم جديد'),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   Future<void> openSettings() async {

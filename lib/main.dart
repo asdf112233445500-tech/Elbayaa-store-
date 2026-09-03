@@ -2270,12 +2270,18 @@ class AdminHomePage extends StatelessWidget {
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('لوحة تحكم الإدارة'),
+          title: const Text(
+            'لوحة تحكم الإدارة',
+            style: TextStyle(fontWeight: FontWeight.w900),
+          ),
           centerTitle: true,
         ),
         body: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            const ElbayaaLogo(size: 70),
+            const SizedBox(height: 20),
+
             _adminMenu(
               context,
               icon: Icons.inventory_2_outlined,
@@ -2283,19 +2289,81 @@ class AdminHomePage extends StatelessWidget {
               subtitle: 'إضافة وتعديل وحذف المنتجات',
               onTap: onProducts,
             ),
+
             _adminMenu(
               context,
               icon: Icons.category_outlined,
               title: 'الأقسام',
-              subtitle: 'إضافة وتعديل أقسام المنتجات',
+              subtitle: 'إضافة وتعديل وإخفاء أقسام المنتجات',
               onTap: onCategories,
             ),
+
             _adminMenu(
               context,
               icon: Icons.shopping_bag_outlined,
               title: 'الطلبات',
-              subtitle: 'عرض ومتابعة طلبات العملاء',
+              subtitle: 'عرض ومتابعة وتعديل طلبات العملاء',
               onTap: onOrders,
+            ),
+
+            _adminMenu(
+              context,
+              icon: Icons.settings_outlined,
+              title: 'إعدادات المتجر',
+              subtitle: 'رسالة الخصومات وأرقام الدفع والمحفظة',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const AdminDashboardPage(
+                      openStoreSettings: true,
+                    ),
+                  ),
+                );
+              },
+            ),
+
+            _adminMenu(
+              context,
+              icon: Icons.palette_outlined,
+              title: 'تخصيص التطبيق',
+              subtitle: 'إعدادات شكل وواجهة التطبيق',
+              onTap: () {
+                showDialog(
+                  context: context,
+                  builder: (dialogContext) => AlertDialog(
+                    title: const Text('تخصيص التطبيق'),
+                    content: const Text(
+                      'قسم تخصيص التطبيق جاهز للإضافة.\n\n'
+                      'سيتم من خلاله التحكم في ألوان التطبيق والخطوط '
+                      'وشكل الواجهة مع حفظ الإعدادات.',
+                    ),
+                    actions: [
+                      FilledButton(
+                        onPressed: () => Navigator.pop(dialogContext),
+                        child: const Text('حسناً'),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+
+            _adminMenu(
+              context,
+              icon: Icons.analytics_outlined,
+              title: 'الإحصائيات',
+              subtitle: 'إحصائيات المنتجات والطلبات والمبيعات',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const AdminDashboardPage(
+                      openOrders: false,
+                    ),
+                  ),
+                );
+              },
             ),
           ],
         ),
@@ -2312,21 +2380,36 @@ class AdminHomePage extends StatelessWidget {
   }) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
+      elevation: 1,
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 18,
-          vertical: 8,
+          vertical: 10,
         ),
-        leading: Icon(icon, size: 30),
+        leading: Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: gold.withOpacity(.12),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Icon(icon, color: gold, size: 27),
+        ),
         title: Text(
           title,
           style: const TextStyle(
-            fontWeight: FontWeight.bold,
+            fontWeight: FontWeight.w900,
             fontSize: 17,
           ),
         ),
-        subtitle: Text(subtitle),
-        trailing: const Icon(Icons.arrow_back_ios_new, size: 18),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 3),
+          child: Text(subtitle),
+        ),
+        trailing: const Icon(
+          Icons.arrow_back_ios_new,
+          size: 18,
+        ),
         onTap: onTap,
       ),
     );

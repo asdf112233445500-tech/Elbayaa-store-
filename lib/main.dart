@@ -48,6 +48,12 @@ class AppSettingsRepository {
   static const defaultWalletNumber = 'رقم المحفظة غير مضاف';
   static const defaultInstapayPhone = 'رقم الهاتف غير مضاف';
 
+  static const defaultPrimaryColor = '0xFFFFC84A';
+  static const defaultBackgroundColor = '0xFF060606';
+  static const defaultSurfaceColor = '0xFF101010';
+  static const defaultCardColor = '0xFF171717';
+  static const defaultFontSize = '16';
+
   static Future<Map<String, String>> load() async {
     try {
       final rows = await supabase.from('app_settings').select('key,value');
@@ -139,15 +145,92 @@ ThemeData _theme() {
   );
 }
 
-class ElbayaaApp extends StatelessWidget {
+class ElbayaaApp extends StatefulWidget {
   const ElbayaaApp({super.key});
+
+  @override
+  State<ElbayaaApp> createState() => _ElbayaaAppState();
+}
+
+class _ElbayaaAppState extends State<ElbayaaApp> {
+  Color primaryColor = gold;
+  Color backgroundColor = bg;
+  Color surfaceColor = surface;
+  Color cardColor = card;
+  double fontSize = 16;
+
+  @override
+  void initState() {
+    super.initState();
+    loadCustomization();
+  }
+
+  Color parseColor(String? value, Color fallback) {
+    if (value == null || value.isEmpty) return fallback;
+
+    final number = int.tryParse(
+      value.replaceFirst('0x', ''),
+      radix: 16,
+    );
+
+    return number == null ? fallback : Color(number);
+  }
+
+  Future<void> loadCustomization() async {
+    final settings = await AppSettingsRepository.load();
+
+    if (!mounted) return;
+
+    setState(() {
+      primaryColor = parseColor(
+        settings['primary_color'],
+        gold,
+      );
+
+      backgroundColor = parseColor(
+        settings['background_color'],
+        bg,
+      );
+
+      fontSize =
+          double.tryParse(settings['font_size'] ?? '') ?? 16;
+
+      surfaceColor = parseColor(
+        settings['surface_color'],
+        surface,
+      );
+
+      cardColor = parseColor(
+        settings['card_color'],
+        card,
+      );
+    });
+  }
+
+  ThemeData buildTheme() {
+    return ThemeData(
+      brightness: Brightness.dark,
+      useMaterial3: true,
+      scaffoldBackgroundColor: backgroundColor,
+      colorScheme: ColorScheme.dark(
+        primary: primaryColor,
+        secondary: primaryColor,
+        surface: surfaceColor,
+        onPrimary: Colors.black,
+      ),
+      cardColor: cardColor,
+      textTheme: ThemeData.dark().textTheme.apply(
+        fontSizeFactor: fontSize / 16,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'ELBAYAA Store',
-      theme: _theme(),
+      theme: buildTheme(),
       home: const HomePage(),
     );
   }
@@ -2327,23 +2410,12 @@ class AdminHomePage extends StatelessWidget {
               context,
               icon: Icons.palette_outlined,
               title: 'تخصيص التطبيق',
-              subtitle: 'إعدادات شكل وواجهة التطبيق',
+              subtitle: 'التحكم في الألوان وحجم الخط',
               onTap: () {
-                showDialog(
-                  context: context,
-                  builder: (dialogContext) => AlertDialog(
-                    title: const Text('تخصيص التطبيق'),
-                    content: const Text(
-                      'قسم تخصيص التطبيق جاهز للإضافة.\n\n'
-                      'سيتم من خلاله التحكم في ألوان التطبيق والخطوط '
-                      'وشكل الواجهة مع حفظ الإعدادات.',
-                    ),
-                    actions: [
-                      FilledButton(
-                        onPressed: () => Navigator.pop(dialogContext),
-                        child: const Text('حسناً'),
-                      ),
-                    ],
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const AppCustomizationPage(),
                   ),
                 );
               },
@@ -2411,6 +2483,307 @@ class AdminHomePage extends StatelessWidget {
           size: 18,
         ),
         onTap: onTap,
+      ),
+    );
+  }
+}
+
+
+class AppCustomizationPage extends StatefulWidget {
+  const AppCustomizationPage({super.key});
+
+  @override
+  State<AppCustomizationPage> createState() => _AppCustomizationPageState();
+}
+
+class _AppCustomizationPageState extends State<AppCustomizationPage> {
+  Color primaryColor = gold;
+  Color backgroundColor = bg;
+  double fontSize = 16;
+  bool loading = true;
+  bool saving = false;
+
+  final List<Color> colors = const [
+    Color(0xFFFFC84A),
+    Color(0xFFFF9800),
+    Color(0xFF00C2FF),
+    Color(0xFF4CAF50),
+    Color(0xFFE91E63),
+    Color(0xFF9C27B0),
+    Color(0xFFF44336),
+    Color(0xFFFFFFFF),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    loadSettings();
+  }
+
+  Color parseColor(String? value, Color fallback) {
+    if (value == null || value.isEmpty) return fallback;
+    final number = int.tryParse(
+      value.replaceFirst('0x', ''),
+      radix: 16,
+    );
+    return number == null ? fallback : Color(number);
+  }
+
+  Future<void> loadSettings() async {
+    final settings = await AppSettingsRepository.load();
+
+    if (!mounted) return;
+
+    setState(() {
+      primaryColor = parseColor(
+        settings['primary_color'],
+        gold,
+      );
+      backgroundColor = parseColor(
+        settings['background_color'],
+        bg,
+      );
+
+      surfaceColor = parseColor(
+        settings['surface_color'],
+        surface,
+      );
+
+      cardColor = parseColor(
+        settings['card_color'],
+        card,
+      );
+
+      fontSize =
+          double.tryParse(settings['font_size'] ?? '') ?? 16;
+      loading = false;
+    });
+  }
+
+  String colorValue(Color color) =>
+      '0x${color.value.toRadixString(16).padLeft(8, '0').toUpperCase()}';
+
+  Future<void> saveSettings() async {
+    setState(() => saving = true);
+
+    try {
+      await AppSettingsRepository.save({
+        'primary_color': colorValue(primaryColor),
+        'background_color': colorValue(backgroundColor),
+        'surface_color': colorValue(surfaceColor),
+        'card_color': colorValue(cardColor),
+        'font_size': fontSize.toString(),
+      });
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('تم حفظ إعدادات التخصيص بنجاح'),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('تعذر الحفظ: $e'),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (loading) {
+      return const Directionality(
+        textDirection: TextDirection.rtl,
+        child: Scaffold(
+          body: Center(
+            child: CircularProgressIndicator(),
+          ),
+        ),
+      );
+    }
+
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text(
+            'تخصيص التطبيق',
+            style: TextStyle(fontWeight: FontWeight.w900),
+          ),
+          centerTitle: true,
+        ),
+        body: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.palette_outlined,
+                      size: 48,
+                      color: primaryColor,
+                    ),
+                    const SizedBox(height: 10),
+                    const Text(
+                      'تخصيص شكل التطبيق',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'اختار اللون الأساسي والخلفية وحجم الخط.',
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 14),
+
+            _colorSection(
+              'اللون الأساسي',
+              primaryColor,
+              (value) => setState(() => primaryColor = value),
+            ),
+
+            _colorSection(
+              'لون الخلفية',
+              backgroundColor,
+              (value) => setState(() => backgroundColor = value),
+            ),
+
+            _colorSection(
+              'لون الأسطح',
+              surfaceColor,
+              (value) => setState(() => surfaceColor = value),
+            ),
+
+            _colorSection(
+              'لون البطاقات',
+              cardColor,
+              (value) => setState(() => cardColor = value),
+            ),
+
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'حجم الخط: ${fontSize.round()}',
+                      style: TextStyle(
+                        fontSize: fontSize,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Slider(
+                      min: 12,
+                      max: 22,
+                      divisions: 10,
+                      value: fontSize,
+                      onChanged: (value) =>
+                          setState(() => fontSize = value),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            SizedBox(
+              height: 52,
+              child: FilledButton.icon(
+                onPressed: saving ? null : saveSettings,
+                icon: saving
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : const Icon(Icons.save_outlined),
+                label: Text(
+                  saving ? 'جاري الحفظ...' : 'حفظ الإعدادات',
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _colorSection(
+    String title,
+    Color selected,
+    ValueChanged<Color> onChanged,
+  ) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 14),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: colors.map((color) {
+                final isSelected =
+                    selected.value == color.value;
+
+                return GestureDetector(
+                  onTap: () => onChanged(color),
+                  child: Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: color,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: isSelected
+                            ? Colors.white
+                            : Colors.transparent,
+                        width: 3,
+                      ),
+                    ),
+                    child: isSelected
+                        ? Icon(
+                            Icons.check,
+                            color:
+                                color.computeLuminance() > .5
+                                    ? Colors.black
+                                    : Colors.white,
+                          )
+                        : null,
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
+        ),
       ),
     );
   }

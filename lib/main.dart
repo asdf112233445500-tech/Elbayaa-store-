@@ -2499,6 +2499,8 @@ class AppCustomizationPage extends StatefulWidget {
 class _AppCustomizationPageState extends State<AppCustomizationPage> {
   Color primaryColor = gold;
   Color backgroundColor = bg;
+  Color surfaceColor = surface;
+  Color cardColor = card;
   double fontSize = 16;
   bool loading = true;
   bool saving = false;

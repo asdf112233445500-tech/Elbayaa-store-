@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 
 class AdminHomePage extends StatelessWidget {
-  const AdminHomePage({super.key});
+  final VoidCallback onProducts;
+
+  const AdminHomePage({
+    super.key,
+    required this.onProducts,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -57,7 +62,7 @@ class AdminHomePage extends StatelessWidget {
                   icon: Icons.inventory_2_outlined,
                   title: 'المنتجات',
                   subtitle: 'إضافة وتعديل المنتجات',
-                  onTap: () {},
+                  onTap: onProducts,
                 ),
                 _AdminMenuCard(
                   icon: Icons.category_outlined,

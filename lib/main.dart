@@ -2086,7 +2086,16 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (_) => const AdminHomePage(),
+          builder: (_) => AdminHomePage(
+            onProducts: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const AdminDashboardPage(),
+                ),
+              );
+            },
+          ),
         ),
       );
     } on AuthException catch (e) {

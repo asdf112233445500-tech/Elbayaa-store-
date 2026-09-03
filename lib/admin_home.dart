@@ -129,8 +129,8 @@ class _AdminMenuCard extends StatelessWidget {
                   color: const Color(0xFFFFC84A).withOpacity(.14),
                   borderRadius: BorderRadius.circular(14),
                 ),
-                child: const Icon(
-                  Icons.dashboard_outlined,
+                child: Icon(
+                  icon,
                   color: Color(0xFFFFC84A),
                 ),
               ),

@@ -751,6 +751,7 @@ class _HomePageState extends State<HomePage> {
             backgroundColor: card,
             onRefresh: () async => refreshProducts(),
             child: ListView(
+              controller: _adminScrollController,
               padding: const EdgeInsets.fromLTRB(16, 10, 16, 25),
               children: [
                 Row(
@@ -2105,6 +2106,16 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
                 ),
               );
             },
+            onOrders: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const AdminDashboardPage(
+                    openOrders: true,
+                  ),
+                ),
+              );
+            },
           ),
         ),
       );
@@ -2235,10 +2246,12 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
 
 class AdminDashboardPage extends StatefulWidget {
   final bool openCategories;
+  final bool openOrders;
 
   const AdminDashboardPage({
     super.key,
     this.openCategories = false,
+    this.openOrders = false,
   });
 
   @override
@@ -2247,6 +2260,8 @@ class AdminDashboardPage extends StatefulWidget {
 }
 
 class _AdminDashboardPageState extends State<AdminDashboardPage> {
+  final ScrollController _adminScrollController = ScrollController();
+
   List<Map<String, dynamic>> products = [];
   List<Map<String, dynamic>> orders = [];
   List<Category> categories = [];
@@ -2264,6 +2279,13 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         }
       });
     }
+
+  }
+
+  @override
+  void dispose() {
+    _adminScrollController.dispose();
+    super.dispose();
   }
 
   Future<void> load() async {
@@ -2297,6 +2319,18 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       if (mounted) showMessage(context, 'خطأ في تحميل البيانات:\n${getSupabaseError(e)}');
     } finally {
       if (mounted) setState(() => loading = false);
+
+      if (widget.openOrders) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && _adminScrollController.hasClients) {
+            _adminScrollController.animateTo(
+              _adminScrollController.position.maxScrollExtent,
+              duration: const Duration(milliseconds: 450),
+              curve: Curves.easeOut,
+            );
+          }
+        });
+      }
     }
   }
 
@@ -3413,6 +3447,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                 color: gold,
                 onRefresh: load,
                 child: ListView(
+                  controller: _adminScrollController,
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
                   children: [
                     const ElbayaaLogo(size: 62),

@@ -3,11 +3,13 @@ import 'package:flutter/material.dart';
 class AdminHomePage extends StatelessWidget {
   final VoidCallback onProducts;
   final VoidCallback onCategories;
+  final VoidCallback onOrders;
 
   const AdminHomePage({
     super.key,
     required this.onProducts,
     required this.onCategories,
+    required this.onOrders,
   });
 
   @override
@@ -76,7 +78,7 @@ class AdminHomePage extends StatelessWidget {
                   icon: Icons.shopping_bag_outlined,
                   title: 'الطلبات',
                   subtitle: 'متابعة وإدارة الطلبات',
-                  onTap: () {},
+                  onTap: onOrders,
                 ),
                 _AdminMenuCard(
                   icon: Icons.storefront_outlined,

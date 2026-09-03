@@ -712,6 +712,7 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+  final ScrollController _adminScrollController = ScrollController();
   late Future<List<Product>> products;
   String search = '';
   String category = 'الكل';
@@ -738,6 +739,12 @@ class _HomePageState extends State<HomePage> {
     setState(() {
       products = ProductRepository.getProducts();
     });
+  }
+
+  @override
+  void dispose() {
+    _adminScrollController.dispose();
+    super.dispose();
   }
 
   @override
@@ -2329,11 +2336,13 @@ class AdminHomePage extends StatelessWidget {
 class AdminDashboardPage extends StatefulWidget {
   final bool openCategories;
   final bool openOrders;
+  final bool openStoreSettings;
 
   const AdminDashboardPage({
     super.key,
     this.openCategories = false,
     this.openOrders = false,
+    this.openStoreSettings = false,
   });
 
   @override

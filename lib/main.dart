@@ -2095,6 +2095,16 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
                 ),
               );
             },
+            onCategories: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const AdminDashboardPage(
+                    openCategories: true,
+                  ),
+                ),
+              );
+            },
           ),
         ),
       );
@@ -2224,7 +2234,12 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
 ============================================================ */
 
 class AdminDashboardPage extends StatefulWidget {
-  const AdminDashboardPage({super.key});
+  final bool openCategories;
+
+  const AdminDashboardPage({
+    super.key,
+    this.openCategories = false,
+  });
 
   @override
   State<AdminDashboardPage> createState() =>
@@ -2241,6 +2256,14 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   void initState() {
     super.initState();
     load();
+
+    if (widget.openCategories) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          manageCategories();
+        }
+      });
+    }
   }
 
   Future<void> load() async {

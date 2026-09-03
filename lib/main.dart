@@ -2244,6 +2244,88 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
    ADMIN DASHBOARD
 ============================================================ */
 
+
+class AdminHomePage extends StatelessWidget {
+  final VoidCallback onProducts;
+  final VoidCallback onCategories;
+  final VoidCallback onOrders;
+
+  const AdminHomePage({
+    super.key,
+    required this.onProducts,
+    required this.onCategories,
+    required this.onOrders,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('لوحة تحكم الإدارة'),
+          centerTitle: true,
+        ),
+        body: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            _adminMenu(
+              context,
+              icon: Icons.inventory_2_outlined,
+              title: 'المنتجات',
+              subtitle: 'إضافة وتعديل وحذف المنتجات',
+              onTap: onProducts,
+            ),
+            _adminMenu(
+              context,
+              icon: Icons.category_outlined,
+              title: 'الأقسام',
+              subtitle: 'إضافة وتعديل أقسام المنتجات',
+              onTap: onCategories,
+            ),
+            _adminMenu(
+              context,
+              icon: Icons.shopping_bag_outlined,
+              title: 'الطلبات',
+              subtitle: 'عرض ومتابعة طلبات العملاء',
+              onTap: onOrders,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _adminMenu(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 18,
+          vertical: 8,
+        ),
+        leading: Icon(icon, size: 30),
+        title: Text(
+          title,
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 17,
+          ),
+        ),
+        subtitle: Text(subtitle),
+        trailing: const Icon(Icons.arrow_back_ios_new, size: 18),
+        onTap: onTap,
+      ),
+    );
+  }
+}
+
 class AdminDashboardPage extends StatefulWidget {
   final bool openCategories;
   final bool openOrders;
@@ -2280,6 +2362,13 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       });
     }
 
+    if (widget.openStoreSettings) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          openSettings();
+        }
+      });
+    }
   }
 
   @override

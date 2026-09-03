@@ -4,12 +4,14 @@ class AdminHomePage extends StatelessWidget {
   final VoidCallback onProducts;
   final VoidCallback onCategories;
   final VoidCallback onOrders;
+  final VoidCallback onStoreSettings;
 
   const AdminHomePage({
     super.key,
     required this.onProducts,
     required this.onCategories,
     required this.onOrders,
+    required this.onStoreSettings,
   });
 
   @override
@@ -84,7 +86,7 @@ class AdminHomePage extends StatelessWidget {
                   icon: Icons.storefront_outlined,
                   title: 'إعدادات المتجر',
                   subtitle: 'الدفع ومعلومات المتجر',
-                  onTap: () {},
+                  onTap: onStoreSettings,
                 ),
                 _AdminMenuCard(
                   icon: Icons.palette_outlined,

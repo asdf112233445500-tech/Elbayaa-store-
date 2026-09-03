@@ -1,6 +1,8 @@
 
 import 'dart:typed_data';
 
+import 'admin_home.dart';
+
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -2084,7 +2086,7 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (_) => const AdminDashboardPage(),
+          builder: (_) => const AdminHomePage(),
         ),
       );
     } on AuthException catch (e) {

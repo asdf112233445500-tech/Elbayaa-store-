@@ -145,92 +145,15 @@ ThemeData _theme() {
   );
 }
 
-class ElbayaaApp extends StatefulWidget {
+class ElbayaaApp extends StatelessWidget {
   const ElbayaaApp({super.key});
-
-  @override
-  State<ElbayaaApp> createState() => _ElbayaaAppState();
-}
-
-class _ElbayaaAppState extends State<ElbayaaApp> {
-  Color primaryColor = gold;
-  Color backgroundColor = bg;
-  Color surfaceColor = surface;
-  Color cardColor = card;
-  double fontSize = 16;
-
-  @override
-  void initState() {
-    super.initState();
-    loadCustomization();
-  }
-
-  Color parseColor(String? value, Color fallback) {
-    if (value == null || value.isEmpty) return fallback;
-
-    final number = int.tryParse(
-      value.replaceFirst('0x', ''),
-      radix: 16,
-    );
-
-    return number == null ? fallback : Color(number);
-  }
-
-  Future<void> loadCustomization() async {
-    final settings = await AppSettingsRepository.load();
-
-    if (!mounted) return;
-
-    setState(() {
-      primaryColor = parseColor(
-        settings['primary_color'],
-        gold,
-      );
-
-      backgroundColor = parseColor(
-        settings['background_color'],
-        bg,
-      );
-
-      fontSize =
-          double.tryParse(settings['font_size'] ?? '') ?? 16;
-
-      surfaceColor = parseColor(
-        settings['surface_color'],
-        surface,
-      );
-
-      cardColor = parseColor(
-        settings['card_color'],
-        card,
-      );
-    });
-  }
-
-  ThemeData buildTheme() {
-    return ThemeData(
-      brightness: Brightness.dark,
-      useMaterial3: true,
-      scaffoldBackgroundColor: backgroundColor,
-      colorScheme: ColorScheme.dark(
-        primary: primaryColor,
-        secondary: primaryColor,
-        surface: surfaceColor,
-        onPrimary: Colors.black,
-      ),
-      cardColor: cardColor,
-      textTheme: ThemeData.dark().textTheme.apply(
-        fontSizeFactor: fontSize / 16,
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'ELBAYAA Store',
-      theme: buildTheme(),
+      theme: _theme(),
       home: const HomePage(),
     );
   }
@@ -2406,17 +2329,7 @@ class AdminHomePage extends StatelessWidget {
               },
             ),
 
-            _adminMenu(
-              context,
-              icon: Icons.palette_outlined,
-              title: 'تخصيص التطبيق',
-              subtitle: 'التحكم في الألوان وحجم الخط',
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const AppCustomizationPage(),
-                  ),
+
                 );
               },
             ),

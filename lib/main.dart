@@ -2330,10 +2330,6 @@ class AdminHomePage extends StatelessWidget {
             ),
 
 
-                );
-              },
-            ),
-
             _adminMenu(
               context,
               icon: Icons.analytics_outlined,
